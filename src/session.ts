@@ -10,6 +10,7 @@ import { createConnection, Server, Socket } from 'net';
 import {
     DebugSession,
     InitializedEvent,
+    OutputEvent,
     Scope,
     Source,
     StackFrame,
@@ -21,17 +22,7 @@ import {
 } from '@vscode/debugadapter';
 import { LogOutputEvent, LogLevel } from '@vscode/debugadapter/lib/logger';
 import { DebugProtocol } from '@vscode/debugprotocol';
-import {
-    commands,
-    FileSystemWatcher,
-    InputBoxOptions,
-    QuickPickItem,
-    QuickPickOptions,
-    RelativePattern,
-    Uri,
-    window,
-    workspace,
-} from 'vscode';
+import { logger } from '@vscode/debugadapter';
 
 // Local imports
 import { Breakpoints } from './breakpoints';
@@ -88,18 +79,6 @@ interface IAttachRequestArguments extends DebugProtocol.AttachRequestArguments {
     passcode?: string;
 }
 
-class TargetPluginItem implements QuickPickItem {
-    public label: string;
-    public detail: string;
-    public targetModuleId: string;
-
-    constructor(pluginDetails: PluginDetails) {
-        this.label = pluginDetails.name;
-        this.detail = 'Script module uuid ' + pluginDetails.module_uuid;
-        this.targetModuleId = pluginDetails.module_uuid;
-    }
-}
-
 interface DebuggerStackFrame {
     id: number;
     name: string;
@@ -146,7 +125,8 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     private _threads = new Set<number>();
     private _requests = new Map<number, PendingResponse>();
     private _sourceMaps: SourceMaps = new SourceMaps('');
-    private _sourceFileWatcher?: FileSystemWatcher;
+    // seems like its for detecting file changes and auto-reloading
+    // private _sourceFileWatcher?: FileSystemWatcher;
     private _localRoot = '';
     private _breakpointsHandler?: IBreakpointsHandler;
     private _sourceMapRoot?: string;
@@ -164,15 +144,15 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     private _passcode?: string;
 
     // external communication
-    private _homeViewProvider: HomeViewProvider;
-    private _statsProvider: StatsProvider;
+    // private _homeViewProvider: HomeViewProvider;
+    // private _statsProvider: StatsProvider;
     private _eventEmitter: EventEmitter;
 
-    public constructor(homeViewProvider: HomeViewProvider, statsProvider: StatsProvider, eventEmitter: EventEmitter) {
+    public constructor(eventEmitter: EventEmitter) {
         super();
 
-        this._homeViewProvider = homeViewProvider;
-        this._statsProvider = statsProvider;
+        // this._homeViewProvider = homeViewProvider;
+        // this._statsProvider = statsProvider;
         this._eventEmitter = eventEmitter;
 
         this.setDebuggerLinesStartAt1(true);
@@ -190,10 +170,10 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         this._eventEmitter.removeAllListeners('stop-profiler');
         this._eventEmitter.removeAllListeners('request-debugger-status');
 
-        if (this._sourceFileWatcher) {
-            this._sourceFileWatcher.dispose();
-            this._sourceFileWatcher = undefined;
-        }
+        // if (this._sourceFileWatcher) {
+        //     this._sourceFileWatcher.dispose();
+        //     this._sourceFileWatcher = undefined;
+        // }
     }
 
     // ------------------------------------------------------------------------
@@ -241,7 +221,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         captureData: string,
         capturePath: string,
         basePath: string,
-        fileName: string
+        fileName: string,
     ): boolean {
         const data = Buffer.from(captureData, 'base64');
 
@@ -259,7 +239,8 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     }
 
     private onRequestDebuggerStatus(): void {
-        this._homeViewProvider.setDebuggerStatus(this._connected, this._minecraftCapabilities);
+        // this._homeViewProvider.setDebuggerStatus(this._connected, this._minecraftCapabilities);
+        // logger.log(this._connected, this._minecraftCapabilities);
     }
 
     // MC has sent the profiler capture results to the debugger
@@ -272,7 +253,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             profilerCapture.capture_data,
             captureFullPathJS,
             profilerCapture.capture_base_path,
-            newCaptureFileNameJS
+            newCaptureFileNameJS,
         );
 
         const newCaptureFileNameTS = `Capture_${formattedDate}_TS.cpuprofile`;
@@ -281,7 +262,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             this._moduleMapping,
             this._moduleMaps,
             this._sourceMaps,
-            profilerCapture.capture_data
+            profilerCapture.capture_data,
         );
 
         let tsFileCreated = false;
@@ -293,18 +274,14 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                 dataTS,
                 captureFullPathTS,
                 profilerCapture.capture_base_path,
-                newCaptureFileNameTS
+                newCaptureFileNameTS,
             );
         }
 
         if (tsFileCreated) {
-            commands.executeCommand('vscode.open', Uri.file(captureFullPathTS)).then(undefined, error => {
-                this.showNotification(`Failed to open CPU profile: ${error.message}`, LogLevel.Error);
-            });
+            logger.log(`Failed to open CPU profile`);
         } else if (jsFileCreated) {
-            commands.executeCommand('vscode.open', Uri.file(captureFullPathJS)).then(undefined, error => {
-                this.showNotification(`Failed to open CPU profile: ${error.message}`, LogLevel.Error);
-            });
+            logger.log(`Failed to open CPU profile`);
         }
     }
 
@@ -341,7 +318,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     // VSCode wants to attach to a debugee (MC), create socket connection on specified port
     protected async attachRequest(
         response: DebugProtocol.AttachResponse,
-        args: IAttachRequestArguments
+        args: IAttachRequestArguments,
     ): Promise<void> {
         this.closeSession();
 
@@ -363,12 +340,17 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         this._generatedSourceRoot = args.generatedSourceRoot ? path.normalize(args.generatedSourceRoot) : undefined;
         this._moduleMapping = args.moduleMapping;
 
+        logger.log(`mapRoot: ${this._sourceMapRoot}`);
+        logger.log(`generatedSourceRoot: ${this._generatedSourceRoot}`);
+
         // Listen or connect (default), depending on mode.
         // Attach makes more sense to use connect, but some MC platforms require using listen.
         try {
             if (args.mode === 'listen') {
+                logger.log('listening at' + port);
                 await this.listen(port);
             } else {
+                logger.log('connecting at' + host + port);
                 await this.connect(host, port);
             }
         } catch (e) {
@@ -395,7 +377,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
 
     protected async setBreakPointsRequest(
         response: DebugProtocol.SetBreakpointsResponse,
-        args: DebugProtocol.SetBreakpointsArguments
+        args: DebugProtocol.SetBreakpointsArguments,
     ): Promise<void> {
         if (!this._breakpointsHandler) {
             throw new Error('Breakpoints handler not initialized.');
@@ -414,7 +396,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             response.body = await this._breakpointsHandler.handleSetBreakpointsRequest(
                 args.source.path,
                 response,
-                args
+                args,
             );
         } catch (e) {
             this.log((e as Error).message, LogLevel.Error);
@@ -427,7 +409,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
 
     protected setExceptionBreakPointsRequest(
         response: DebugProtocol.SetExceptionBreakpointsResponse,
-        args: DebugProtocol.SetExceptionBreakpointsArguments
+        args: DebugProtocol.SetExceptionBreakpointsArguments,
     ): void {
         this.sendDebuggeeMessage({
             type: 'stopOnException',
@@ -449,7 +431,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
         response.body = {
             threads: Array.from(this._threads.keys()).map(
-                thread => new Thread(thread, `thread 0x${thread.toString(16)}`)
+                thread => new Thread(thread, `thread 0x${thread.toString(16)}`),
             ),
         };
         this.sendResponse(response);
@@ -457,7 +439,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
 
     static createModuleMap(
         localRoot: string,
-        mapping: ModuleMapping | undefined
+        mapping: ModuleMapping | undefined,
     ): Record<string, SourceMaps> | undefined {
         if (!mapping) {
             return undefined;
@@ -473,7 +455,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         debuggerStackFrames: DebuggerStackFrame[],
         moduleMapping: ModuleMapping | undefined,
         moduleMaps: Record<string, SourceMaps> | undefined,
-        baseSourceMaps: SourceMaps
+        baseSourceMaps: SourceMaps,
     ): Promise<StackFrame[]> {
         const stackFrames: StackFrame[] = [];
         for (const { id, name, filename, line, column } of debuggerStackFrames) {
@@ -498,7 +480,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     // VSCode requesting stack trace for threads, follows threadsRequest
     protected async stackTraceRequest(
         response: DebugProtocol.StackTraceResponse,
-        args: DebugProtocol.StackTraceArguments
+        args: DebugProtocol.StackTraceArguments,
     ): Promise<void> {
         const stacksBody = (await this.sendDebugeeRequestAsync(response, args)) as DebuggerStackFrame[];
 
@@ -506,7 +488,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             stacksBody,
             this._moduleMapping,
             this._moduleMaps,
-            this._sourceMaps
+            this._sourceMaps,
         );
         const totalFrames = stacksBody.length;
 
@@ -534,7 +516,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
 
     protected variablesRequest(
         response: DebugProtocol.VariablesResponse,
-        args: DebugProtocol.VariablesArguments
+        args: DebugProtocol.VariablesArguments,
     ): void {
         // get variables at this reference (all vars in scope or vars in object/array)
         this.sendDebugeeRequest(response, args, (body: any) => {
@@ -545,7 +527,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                     name,
                     value,
                     variablesReference,
-                    indexedVariables
+                    indexedVariables,
                 );
                 variable.type = type; // to show type when hovered
                 variables.push(variable);
@@ -631,7 +613,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                         await this._breakpointsHandler.handleSetBreakpointsRequest(
                             args.source.path,
                             setBreakpointsResponse,
-                            args
+                            args,
                         );
                         // send original response, not the special one we created
                         this.sendResponse(response);
@@ -726,7 +708,8 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         this._minecraftCapabilities = this.getMinecraftCapabilities();
 
         // notify home view of session connection
-        this._homeViewProvider.setDebuggerStatus(true, this._minecraftCapabilities);
+        // this._homeViewProvider.setDebuggerStatus(true, this._minecraftCapabilities);
+        logger.log('session is connected' + JSON.stringify(this._minecraftCapabilities));
 
         // respond with protocol version and chosen debugee target
         this.sendDebuggeeMessage({
@@ -747,7 +730,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             this._localRoot,
             this._sourceMapRoot,
             this._generatedSourceRoot,
-            this._inlineSourceMap
+            this._inlineSourceMap,
         );
 
         this._moduleMaps = Session.createModuleMap(this._localRoot, this._moduleMapping);
@@ -769,9 +752,9 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         this.sendEvent(new InitializedEvent());
 
         // If the user has set the configuration to show the diagnostic view on connect in settings.json, show it now.
-        if (workspace.getConfiguration('minecraft-debugger').get('showDiagnosticViewOnConnect')) {
-            commands.executeCommand('minecraft-debugger.liveDiagnostics');
-        }
+        // if (workspace.getConfiguration('minecraft-debugger').get('showDiagnosticViewOnConnect')) {
+        //     commands.executeCommand('minecraft-debugger.liveDiagnostics');
+        // }
     }
 
     // stop listening for connections
@@ -804,7 +787,8 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
 
             this.sendEvent(new TerminatedEvent());
             this.showNotification(`Session terminated, ${reason}.`, logLevel);
-            this._homeViewProvider.setDebuggerStatus(false, this._minecraftCapabilities);
+            // this._homeViewProvider.setDebuggerStatus(false, this._minecraftCapabilities);
+            logger.log('session is disconnected' + JSON.stringify(this._minecraftCapabilities));
             this.dispose();
         }
     }
@@ -888,12 +872,14 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             this.sendEvent(new ThreadEvent(eventMessage.reason, eventMessage.thread));
         } else if (eventMessage.type === 'PrintEvent') {
             this.handlePrintEvent(eventMessage.message, eventMessage.logLevel);
+            // logger.log(eventMessage.message, eventMessage.logLevel);
         } else if (eventMessage.type === 'NotificationEvent') {
             this.showNotification(eventMessage.message, eventMessage.logLevel);
         } else if (eventMessage.type === 'ProtocolEvent') {
             this.handleProtocolEvent(eventMessage as ProtocolCapabilities);
         } else if (eventMessage.type === 'StatEvent2') {
-            this._statsProvider.setStats(eventMessage as StatMessageModel);
+            // this._statsProvider.setStats(eventMessage as StatMessageModel);
+            logger.log(eventMessage);
         } else if (eventMessage.type === 'ProfilerCapture') {
             this.handleProfilerCapture(eventMessage as ProfilerCapture);
         }
@@ -901,38 +887,39 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
 
     private async handlePrintEvent(message: string, logLevel: LogLevel) {
         // Attempt to resolve type maps for file paths/line numbers in each message
-        const jsFileLineNoColumRegex = /\(([a-zA-Z0-9_\-./\\ ]+\.js):(\d+)\)/g;
-        const matches = message.matchAll(jsFileLineNoColumRegex);
-        for (const match of matches) {
-            try {
-                const fullMatch = match[0];
-                const javaScriptFilePath = match[1];
-                const javaScriptLineNumber = parseInt(match[2]);
-
-                const generatedPosition = await this._sourceMaps.getOriginalPositionFor({
-                    source: javaScriptFilePath,
-                    column: 0,
-                    line: javaScriptLineNumber,
-                });
-                // Resolve generatedPosition.source to be relative to the active workspace. If there is no workspace, the absolute path gets returned.
-                let generatedPositionSourceAsRelative = workspace.asRelativePath(generatedPosition.source);
-                if (generatedPositionSourceAsRelative !== generatedPosition.source) {
-                    generatedPositionSourceAsRelative = `./${generatedPositionSourceAsRelative}`;
-                }
-
-                if (generatedPosition) {
-                    message = message.replace(
-                        fullMatch,
-                        `(${generatedPositionSourceAsRelative}:${generatedPosition.line}) (${javaScriptFilePath}:${javaScriptLineNumber})`
-                    );
-                }
-            } catch (e) {
-                // Eat the error, sometimes source map lookups just ain't happening
-            }
-        }
+        // const jsFileLineNoColumRegex = /\(([a-zA-Z0-9_\-./\\ ]+\.js):(\d+)\)/g;
+        // const matches = message.matchAll(jsFileLineNoColumRegex);
+        // for (const match of matches) {
+        //     try {
+        //         const fullMatch = match[0];
+        //         const javaScriptFilePath = match[1];
+        //         const javaScriptLineNumber = parseInt(match[2]);
+        //
+        //         const generatedPosition = await this._sourceMaps.getOriginalPositionFor({
+        //             source: javaScriptFilePath,
+        //             column: 0,
+        //             line: javaScriptLineNumber,
+        //         });
+        //         // Resolve generatedPosition.source to be relative to the active workspace. If there is no workspace, the absolute path gets returned.
+        //         let generatedPositionSourceAsRelative = workspace.asRelativePath(generatedPosition.source);
+        //         if (generatedPositionSourceAsRelative !== generatedPosition.source) {
+        //             generatedPositionSourceAsRelative = `./${generatedPositionSourceAsRelative}`;
+        //         }
+        //
+        //         if (generatedPosition) {
+        //             message = message.replace(
+        //                 fullMatch,
+        //                 `(${generatedPositionSourceAsRelative}:${generatedPosition.line}) (${javaScriptFilePath}:${javaScriptLineNumber})`,
+        //             );
+        //         }
+        //     } catch (e) {
+        //         // Eat the error, sometimes source map lookups just ain't happening
+        //     }
+        // }
 
         this.sendEvent(new LogOutputEvent(message.trimEnd() + '\n', logLevel));
     }
+
     // Debugee (MC) responses to pending VSCode requests. Promises contained in a map keyed by
     // the sequence number of the request. Fascilitates the 'await sendDebugeeRequestAsync(...)' pattern.
     private handleDebugeeResponse(envelope: any) {
@@ -968,7 +955,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         if (this._debuggerProtocolVersion < protocolCapabilities.version) {
             this.terminateSession(
                 `protocol unsupported. Upgrade Debugger Extension. Protocol Version: ${protocolCapabilities.version} is not supported by the current version of the Debugger.`,
-                LogLevel.Error
+                LogLevel.Error,
             );
         } else {
             if (protocolCapabilities.version === ProtocolVersion.SupportTargetModuleUuid) {
@@ -981,12 +968,13 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                 }
 
                 // if passcode is required, prompt user for it
-                const passcode = await this.promptForPasscode(protocolCapabilities.require_passcode);
+                // const passcode = await this.promptForPasscode(protocolCapabilities.require_passcode);
+                const passcode = '1234';
 
                 // if a targetuuid was provided, make sure it's valid
                 if (this._targetModuleUuid) {
                     const isValidTarget = protocolCapabilities.plugins.some(
-                        plugin => plugin.module_uuid === this._targetModuleUuid
+                        plugin => plugin.module_uuid === this._targetModuleUuid,
                     );
                     if (isValidTarget) {
                         this.onConnectionComplete(protocolCapabilities.version, this._targetModuleUuid, passcode);
@@ -994,37 +982,37 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                     } else {
                         this.showNotification(
                             `Minecraft Add-On script module not found with targetModuleUuid ${this._targetModuleUuid} specified in launch.json. Prompting for debug target.`,
-                            LogLevel.Warn
+                            LogLevel.Warn,
                         );
                     }
                 } else if (protocolCapabilities.plugins.length === 1) {
                     this.onConnectionComplete(
                         protocolCapabilities.version,
                         protocolCapabilities.plugins[0].module_uuid,
-                        passcode
+                        passcode,
                     );
                     return;
                 } else {
                     this.showNotification(
                         'The targetModuleUuid in launch.json is not set to a valid uuid. Set this to a script module uuid (manifest.json) to avoid the selection prompt.',
-                        LogLevel.Warn
+                        LogLevel.Warn,
                     );
                 }
 
                 // Could not connect automatically, prompt user to select target.
-                const targetUuid = await this.promptForTargetPlugin(protocolCapabilities.plugins);
-                if (!targetUuid) {
-                    this.terminateSession(
-                        'could not determine target Minecraft Add-On. You must specify the targetModuleUuid.',
-                        LogLevel.Error
-                    );
-                    return;
-                }
-                this.onConnectionComplete(protocolCapabilities.version, targetUuid, passcode);
+                // const targetUuid = await this.promptForTargetPlugin(protocolCapabilities.plugins);
+                // if (!targetUuid) {
+                this.terminateSession(
+                    'could not determine target Minecraft Add-On. You must specify the targetModuleUuid.',
+                    LogLevel.Error,
+                );
+                return;
+                // }
+                // this.onConnectionComplete(protocolCapabilities.version, targetUuid, passcode);
             } else {
                 this.terminateSession(
                     `protocol unsupported. Downgrade Debugger Extension. Protocol Version: ${protocolCapabilities.version} is not supported by the current version of the Debugger.`,
-                    LogLevel.Error
+                    LogLevel.Error,
                 );
             }
         }
@@ -1035,26 +1023,26 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             if (this._passcode) {
                 return this._passcode;
             } else {
-                const options: InputBoxOptions = {
-                    title: 'Enter Passcode',
-                    ignoreFocusOut: true,
-                };
-                return await window.showInputBox(options);
+                // const options: InputBoxOptions = {
+                //     title: 'Enter Passcode',
+                //     ignoreFocusOut: true,
+                // };
+                // return await window.showInputBox(options);
             }
         }
         return undefined;
     }
 
     private async promptForTargetPlugin(plugins: PluginDetails[]): Promise<string | undefined> {
-        const items: TargetPluginItem[] = plugins.map(plugin => new TargetPluginItem(plugin));
-        const options: QuickPickOptions = {
-            title: 'Choose the Minecraft Add-On to debug',
-            ignoreFocusOut: true,
-        };
-        const targetItem = await window.showQuickPick(items, options);
-        if (targetItem) {
-            return targetItem.targetModuleId;
-        }
+        // const items: TargetPluginItem[] = plugins.map(plugin => new TargetPluginItem(plugin));
+        // const options: QuickPickOptions = {
+        //     title: 'Choose the Minecraft Add-On to debug',
+        //     ignoreFocusOut: true,
+        // };
+        // const targetItem = await window.showQuickPick(items, options);
+        // if (targetItem) {
+        //     return targetItem.targetModuleId;
+        // }
         return undefined;
     }
 
@@ -1083,7 +1071,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                 this._inlineSourceMap = true;
                 this.log(
                     `Source maps (.map files) not found. Enabling inline source maps from sourceMapRoot:[${this._sourceMapRoot}].`,
-                    LogLevel.Log
+                    LogLevel.Log,
                 );
             }
 
@@ -1096,7 +1084,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                     this.showNotification(
                         `Inline source maps not found, failed to find .js files at sourceMapRoot:[${this._sourceMapRoot}].`,
                         LogLevel.Warn,
-                        true
+                        true,
                     );
                 }
             }
@@ -1110,7 +1098,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                     this.showNotification(
                         `Failed to find .js files at generatedSourceRoot:[${this._generatedSourceRoot}].`,
                         LogLevel.Warn,
-                        true
+                        true,
                     );
                 }
             }
@@ -1124,7 +1112,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                 this.showNotification(
                     "Failed to find .js files. Check that launch.json 'localRoot' cointains .js files.",
                     LogLevel.Warn,
-                    true
+                    true,
                 );
             }
 
@@ -1134,7 +1122,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                 this.showNotification(
                     "Found .ts files at 'localRoot' but 'sourceMapRoot' is not defined.",
                     LogLevel.Warn,
-                    true
+                    true,
                 );
             }
         }
@@ -1168,63 +1156,65 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         }
     }
 
+    // TODO: needs a heavy rewrite, mostly file paths and globs + file watcher
     private createSourceMapFileWatcher(localRoot: string, sourceMapRoot?: string) {
-        if (this._sourceFileWatcher) {
-            this._sourceFileWatcher.dispose();
-            this._sourceFileWatcher = undefined;
-        }
-
-        const config = workspace.getConfiguration('minecraft-debugger');
-        const reloadOnSourceChangesEnabled = config.get<boolean>('reloadOnSourceChanges.enabled');
-        const reloadOnSourceChangesDelay = Math.max(config.get<number>('reloadOnSourceChanges.delay') ?? 0, 0);
-        const reloadOnSourceChangesGlobPattern = config.get<string>('reloadOnSourceChanges.globPattern');
-
-        // watch all files within the workspace matching custom glob pattern.
-        // only active if Minecraft /reload is enabled
-        let globPattern: RelativePattern | undefined = undefined;
-        if (reloadOnSourceChangesGlobPattern && reloadOnSourceChangesEnabled) {
-            const workspaceFolders = workspace.workspaceFolders;
-            if (workspaceFolders && workspaceFolders.length > 0) {
-                globPattern = new RelativePattern(
-                    workspaceFolders[0].uri.fsPath ?? '',
-                    reloadOnSourceChangesGlobPattern
-                );
-            }
-        }
-        // watch source map files and reload cache if changed.
-        // always needed if source maps are used.
-        else if (sourceMapRoot) {
-            globPattern = new RelativePattern(sourceMapRoot, '**/*.{map,js}');
-        }
-        // watch localRoot for .js file changes.
-        // only needed if Minecraft /reload is enabled
-        else if (localRoot && reloadOnSourceChangesEnabled) {
-            globPattern = new RelativePattern(localRoot, '**/*.js');
-        }
-
-        if (globPattern) {
-            this._sourceFileWatcher = workspace.createFileSystemWatcher(globPattern, false, false, false);
-        }
-
-        let timeout: NodeJS.Timeout;
-        const onSourceChanged = (): void => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => {
-                // always clear source maps
-                this._sourceMaps.clearCache();
-                // and optionally reload Minecraft
-                if (reloadOnSourceChangesEnabled) {
-                    this.onRunMinecraftCommand('say §aPerforming Auto-Reload');
-                    this.onRunMinecraftCommand('reload');
-                }
-            }, reloadOnSourceChangesDelay);
-        };
-
-        if (this._sourceFileWatcher) {
-            this._sourceFileWatcher.onDidChange(onSourceChanged);
-            this._sourceFileWatcher.onDidCreate(onSourceChanged);
-            this._sourceFileWatcher.onDidDelete(onSourceChanged);
-        }
+        // if (this._sourceFileWatcher) {
+        //     this._sourceFileWatcher.dispose();
+        //     this._sourceFileWatcher = undefined;
+        // }
+        return;
+        //
+        // const config = workspace.getConfiguration('minecraft-debugger');
+        // const reloadOnSourceChangesEnabled = config.get<boolean>('reloadOnSourceChanges.enabled');
+        // const reloadOnSourceChangesDelay = Math.max(config.get<number>('reloadOnSourceChanges.delay') ?? 0, 0);
+        // const reloadOnSourceChangesGlobPattern = config.get<string>('reloadOnSourceChanges.globPattern');
+        //
+        // // watch all files within the workspace matching custom glob pattern.
+        // // only active if Minecraft /reload is enabled
+        // let globPattern: RelativePattern | undefined = undefined;
+        // if (reloadOnSourceChangesGlobPattern && reloadOnSourceChangesEnabled) {
+        //     const workspaceFolders = workspace.workspaceFolders;
+        //     if (workspaceFolders && workspaceFolders.length > 0) {
+        //         globPattern = new RelativePattern(
+        //             workspaceFolders[0].uri.fsPath ?? '',
+        //             reloadOnSourceChangesGlobPattern,
+        //         );
+        //     }
+        // }
+        // // watch source map files and reload cache if changed.
+        // // always needed if source maps are used.
+        // else if (sourceMapRoot) {
+        //     globPattern = new RelativePattern(sourceMapRoot, '**/*.{map,js}');
+        // }
+        // // watch localRoot for .js file changes.
+        // // only needed if Minecraft /reload is enabled
+        // else if (localRoot && reloadOnSourceChangesEnabled) {
+        //     globPattern = new RelativePattern(localRoot, '**/*.js');
+        // }
+        //
+        // if (globPattern) {
+        //     this._sourceFileWatcher = workspace.createFileSystemWatcher(globPattern, false, false, false);
+        // }
+        //
+        // let timeout: NodeJS.Timeout;
+        // const onSourceChanged = (): void => {
+        //     clearTimeout(timeout);
+        //     timeout = setTimeout(() => {
+        //         // always clear source maps
+        //         this._sourceMaps.clearCache();
+        //         // and optionally reload Minecraft
+        //         if (reloadOnSourceChangesEnabled) {
+        // this.onRunMinecraftCommand('say §aPerforming Auto-Reload');
+        // this.onRunMinecraftCommand('reload');
+        //         }
+        //     }, reloadOnSourceChangesDelay);
+        // };
+        //
+        // if (this._sourceFileWatcher) {
+        //     this._sourceFileWatcher.onDidChange(onSourceChanged);
+        //     this._sourceFileWatcher.onDidCreate(onSourceChanged);
+        //     this._sourceFileWatcher.onDidDelete(onSourceChanged);
+        // }
     }
 
     private getMinecraftCapabilities(): MinecraftCapabilities {
@@ -1242,12 +1232,13 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     }
 
     private showNotification(message: string, logLevel: LogLevel, toLog = false) {
+        toLog = true;
         if (logLevel === LogLevel.Log) {
-            window.showInformationMessage(message);
+            logger.log(message, logLevel);
         } else if (logLevel === LogLevel.Warn) {
-            window.showWarningMessage(message);
+            logger.log(message, logLevel);
         } else if (logLevel === LogLevel.Error) {
-            window.showErrorMessage(message);
+            logger.log(message, logLevel);
         }
         if (toLog) {
             this.log(message, logLevel);

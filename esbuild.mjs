@@ -21,14 +21,16 @@ async function main() {
      * @type {import('esbuild').BuildOptions}
      */
     const buildOptions = {
-        entryPoints: ['src/extension.ts'],
+        // entryPoints: ['src/extension.ts'],
+        entryPoints: ['src/adapter.ts'],
         bundle: true,
         format: 'cjs',
         minify: production,
         sourcemap: !production,
         sourcesContent: false,
         platform: 'node',
-        outfile: 'dist/extension.js',
+        // outfile: 'dist/extension.js',
+        outfile: 'dist/adapter.js',
         external: ['vscode'],
         logLevel: 'silent',
         plugins: [esbuildProblemMatcherPlugin, copySourceMapWasm],
