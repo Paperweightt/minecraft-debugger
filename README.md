@@ -10,17 +10,17 @@ This Visual Studio Plugin was patched to work anywhere, albeit at the cost of se
 
 ### Supported features in Neovim
 
-- [x] Setting breakpoints
-- [x] Stepping through the code
-- [x] The Locals pane
-- [x] Changing variable state
-- [x] Immediate mode
+- Setting breakpoints
+- Stepping through the code
+- The Locals pane
+- Changing variable state
+- Immediate mode
 
 ### Unsupported features
 
-- [ ] Watches
-- [ ] Performance diagnostics
-- [ ] Running Minecraft slash commands
+- Watches
+- Performance diagnostics
+- Running Minecraft slash commands
 
 ## Getting Started
 
@@ -70,10 +70,6 @@ Minecraft Bedrock Preview:
 ```powershell
 CheckNetIsolation.exe LoopbackExempt -a -p=S-1-15-2-424268864-5579737-879501358-346833251-474568803-887069379-4040235476
 ```
-
-#### Open Neovim within your development_behavior_packs folder
-
-In order for the debugger to know where to find your source JavaScript or TypeScript files, you'll need to specifically open up a window of Visual Studio Code relative to the behavior pack where your JavaScript or TypeScript source files are. This may be inside of Minecraft's development_behavior_packs folder (e.g., `localappdata%\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\development_behavior_packs`) - or you may have your source code located in a separate folder (e.g., `c:\projects\myaddon`).
 
 #### Prepare Neovim for a connection
 
