@@ -4,25 +4,27 @@
   <br>
 </h1>
 
-<h4 align="center">Debug your JavaScript code running in Minecraft Bedrock, from NOT Visual Studio Code.</h4>
+<h4 align="center">Debug your JavaScript or TypeScript code running in Minecraft Bedrock, from NOT Visual Studio Code.</h4>
 
 This Visual Studio Plugin was patched to work anywhere, albeit at the cost of several features
 
-### Supported features
+### Supported features in Neovim
 
 - [x] Setting breakpoints
 - [x] Stepping through the code
-- [ ] The Locals pane
+- [x] The Locals pane
+- [x] Changing variable state
+- [x] Immediate mode
+
+### Unsupported features
+
 - [ ] Watches
 - [ ] Performance diagnostics
 - [ ] Running Minecraft slash commands
 
-### Unsupported scenarios
-
-- Changing variable state
-- Immediate mode
-
 ## Getting Started
+
+clone the repository then run:
 
 ```
 npm install
@@ -31,9 +33,11 @@ npm run compile
 
 ### For debugging Minecraft Bedrock client inside Neovim
 
+---
+
 To use debugger capabilities, you'll want to install the nvim-dap within Neovim.
 
-Example config with [lazy.nvim](https://github.com/folke/lazy.nvim),
+Minimal example config with [lazy.nvim](https://github.com/folke/lazy.nvim),
 Switch out `args[0]` with the location of your build
 
 ```lua
@@ -42,20 +46,11 @@ Switch out `args[0]` with the location of your build
     config = function()
       local dap = require('dap')
 
-      dap.adapters['minecraft-js'] = function(callback)
-        local root = vim.fs.root(0, { ".vscode" }) or vim.fn.getcwd()
-
-        callback({
-          type = "executable",
-          command = "node",
-          args = { "path/to/build/minecraft-debugger/dist/adapter.js" },
-          options = {
-            -- pass root to use as ${workspace} in dap later
-            cwd = root,
-            env = vim.fn.environ(), -- pass full environment
-          },
-        })
-      end
+      dap.adapters['minecraft-js'] = {
+        type = "executable",
+        command = "node",
+        args = { "path/to/build/minecraft-debugger/dist/adapter.js" },
+      }
     end
   }
 ```
@@ -140,11 +135,11 @@ Note that `generatedSourceRoot` should point at a folder where your generated Ja
 
 Now that you've prepared Neovim and prepared your behavior pack, you're ready to start debugging!
 
-Within Neovim, use `:DapNew` or `:DapContinue` to start debugging. This will place the DAP into "Listen Mode", where it awaits a connection from Minecraft.
+Within Neovim cd into your project directory and use `:DapNew` or `:DapContinue` to start debugging. This will place the DAP into "Listen Mode", where it awaits a connection from Minecraft.
 
 Start Minecraft and load into a world with your scripting behavior pack.
 
-Use this slash command to connect Minecraft to Visual Studio Code:
+Use this slash command to connect to the DAP:
 
 `script debugger connect`
 
@@ -152,7 +147,12 @@ You should see a "Debugger connected to host" response from this command if the 
 
 You can set breakpoints in your code with `:DapToggleBreakpoint`, on specific lines of code. As you run the tests in the behavior pack, your breakpoints will be hit. You can also view local variables and add watches as necessary (maybe).
 
-### Debugging with Minecraft Bedrock Dedicated Server (UNTESTED)
+### Debugging with Minecraft Bedrock Dedicated Server
+
+---
+
+> [!CAUTION]
+> This feature is highly expected to work but has not yet been tested.
 
 The procedure for debugging with Bedrock Dedicated Server is a little different. When debugging with Bedrock Dedicated Server, Bedrock Dedicated Server (not Neovim) will listen for debug connections initiated from Neovim.
 
