@@ -8,9 +8,7 @@
 
 This Visual Studio Plugin was patched to work anywhere, albeit at the cost of several features
 
-## :fire: Features in Neovim vs Vscode
-
----
+### :fire: Features in Neovim vs Vscode
 
 | Feature                  | Neovim | Vscode |
 | ------------------------ | ------ | ------ |
@@ -23,7 +21,7 @@ This Visual Studio Plugin was patched to work anywhere, albeit at the cost of se
 | Performance diagnostics  | no     | yes    |
 | Minecraft Slash Commands | no     | yes    |
 
-## :rocket: Getting Started
+### :rocket: Getting Started
 
 clone the repository then run:
 
