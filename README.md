@@ -16,10 +16,10 @@ The plugin was patched to work anywhere, albeit at the cost of several features
 | Step Through Code        |   ✓    |    ✓    |
 | Locals / Scopes Panel    |   ✓    |    ✓    |
 | Watches                  |   ✓    |    ✓    |
+| Minecraft Slash Commands |   ✓    |    ✓    |
 | Change Variable State    |   ✓    |    ✗    |
 | Immediate Mode (REPL)    |   ✓    |    ✗    |
 | Performance Diagnostics  |   ✗    |    ✓    |
-| Minecraft Slash Commands |   ✗    |    ✓    |
 
 ### :rocket: Getting Started
 
@@ -50,6 +50,15 @@ Switch out `args[0]` with the location of your build
         command = "node",
         args = { "path/to/build/minecraft-debugger/dist/adapter.js" },
       }
+
+      repl.commands = vim.tbl_extend('force', repl.commands, {
+        custom_commands = {
+          ['.run'] = function(text)
+            local session = assert(require("dap").session(), "has active session")
+            session:request("sendMinecraftCommand", { command = text })
+          end,
+        },
+      })
 
       -- snippet to output logs outside of repl
       dap.listeners.before['event_output']['mc_dap'] = function(_, body)
