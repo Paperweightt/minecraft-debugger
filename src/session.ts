@@ -10,7 +10,6 @@ import { createConnection, Server, Socket } from 'net';
 import {
     DebugSession,
     InitializedEvent,
-    OutputEvent,
     Scope,
     Source,
     StackFrame,
@@ -340,17 +339,12 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         this._generatedSourceRoot = args.generatedSourceRoot ? path.normalize(args.generatedSourceRoot) : undefined;
         this._moduleMapping = args.moduleMapping;
 
-        logger.log(`mapRoot: ${this._sourceMapRoot}`);
-        logger.log(`generatedSourceRoot: ${this._generatedSourceRoot}`);
-
         // Listen or connect (default), depending on mode.
         // Attach makes more sense to use connect, but some MC platforms require using listen.
         try {
             if (args.mode === 'listen') {
-                logger.log('listening at' + port);
                 await this.listen(port);
             } else {
-                logger.log('connecting at' + host + port);
                 await this.connect(host, port);
             }
         } catch (e) {
@@ -641,7 +635,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             this.onDebugeeConnected(socket);
         });
         this._debugeeServer.listen(port);
-        this.showNotification(`Listening for debugger connections on port [${port}].`, LogLevel.Log);
+        this.showNotification(`Listening for debugger connections on port [${port}].`, LogLevel.Log, true);
     }
 
     // connect to Minecraft (Minecraft (debugee) is server, VSCode is client)
@@ -723,7 +717,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         this.checkSourceFilePaths();
 
         // success
-        this.showNotification('Success! Debugger is now connected.', LogLevel.Log);
+        this.showNotification('Success! Debugger is now connected.', LogLevel.Log, true);
 
         // init source maps
         this._sourceMaps = new SourceMaps(
@@ -786,7 +780,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             this._terminated = true;
 
             this.sendEvent(new TerminatedEvent());
-            this.showNotification(`Session terminated, ${reason}.`, logLevel);
+            this.showNotification(`Session terminated, ${reason}.`, logLevel, true);
             // this._homeViewProvider.setDebuggerStatus(false, this._minecraftCapabilities);
             logger.log('session is disconnected' + JSON.stringify(this._minecraftCapabilities));
             this.dispose();
@@ -872,9 +866,9 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             this.sendEvent(new ThreadEvent(eventMessage.reason, eventMessage.thread));
         } else if (eventMessage.type === 'PrintEvent') {
             this.handlePrintEvent(eventMessage.message, eventMessage.logLevel);
-            // logger.log(eventMessage.message, eventMessage.logLevel);
+            // this.showNotification(eventMessage.message, eventMessage.logLevel, true);
         } else if (eventMessage.type === 'NotificationEvent') {
-            this.showNotification(eventMessage.message, eventMessage.logLevel);
+            this.showNotification(eventMessage.message, eventMessage.logLevel, true);
         } else if (eventMessage.type === 'ProtocolEvent') {
             this.handleProtocolEvent(eventMessage as ProtocolCapabilities);
         } else if (eventMessage.type === 'StatEvent2') {
@@ -917,7 +911,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         //     }
         // }
 
-        this.sendEvent(new LogOutputEvent(message.trimEnd() + '\n', logLevel));
+        this.showNotification(message.trimEnd(), logLevel, true);
     }
 
     // Debugee (MC) responses to pending VSCode requests. Promises contained in a map keyed by
@@ -967,9 +961,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                     return;
                 }
 
-                // if passcode is required, prompt user for it
-                // const passcode = await this.promptForPasscode(protocolCapabilities.require_passcode);
-                const passcode = '1234';
+                const passcode = this._passcode;
 
                 // if a targetuuid was provided, make sure it's valid
                 if (this._targetModuleUuid) {
@@ -983,6 +975,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                         this.showNotification(
                             `Minecraft Add-On script module not found with targetModuleUuid ${this._targetModuleUuid} specified in launch.json. Prompting for debug target.`,
                             LogLevel.Warn,
+                            true,
                         );
                     }
                 } else if (protocolCapabilities.plugins.length === 1) {
@@ -996,19 +989,14 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                     this.showNotification(
                         'The targetModuleUuid in launch.json is not set to a valid uuid. Set this to a script module uuid (manifest.json) to avoid the selection prompt.',
                         LogLevel.Warn,
+                        true,
                     );
                 }
 
-                // Could not connect automatically, prompt user to select target.
-                // const targetUuid = await this.promptForTargetPlugin(protocolCapabilities.plugins);
-                // if (!targetUuid) {
                 this.terminateSession(
                     'could not determine target Minecraft Add-On. You must specify the targetModuleUuid.',
                     LogLevel.Error,
                 );
-                return;
-                // }
-                // this.onConnectionComplete(protocolCapabilities.version, targetUuid, passcode);
             } else {
                 this.terminateSession(
                     `protocol unsupported. Downgrade Debugger Extension. Protocol Version: ${protocolCapabilities.version} is not supported by the current version of the Debugger.`,
@@ -1018,58 +1006,30 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         }
     }
 
-    private async promptForPasscode(requirePasscode?: boolean): Promise<string | undefined> {
-        if (requirePasscode) {
-            if (this._passcode) {
-                return this._passcode;
-            } else {
-                // const options: InputBoxOptions = {
-                //     title: 'Enter Passcode',
-                //     ignoreFocusOut: true,
-                // };
-                // return await window.showInputBox(options);
-            }
-        }
-        return undefined;
-    }
-
-    private async promptForTargetPlugin(plugins: PluginDetails[]): Promise<string | undefined> {
-        // const items: TargetPluginItem[] = plugins.map(plugin => new TargetPluginItem(plugin));
-        // const options: QuickPickOptions = {
-        //     title: 'Choose the Minecraft Add-On to debug',
-        //     ignoreFocusOut: true,
-        // };
-        // const targetItem = await window.showQuickPick(items, options);
-        // if (targetItem) {
-        //     return targetItem.targetModuleId;
-        // }
-        return undefined;
-    }
-
     // check that source and map properties in launch.json are set correctly
     private checkSourceFilePaths() {
         this._inlineSourceMap = false;
 
         if (this._localRoot) {
-            this.log(`localRoot:[${this._localRoot}].`, LogLevel.Log);
+            this.showNotification(`localRoot:[${this._localRoot}].`, LogLevel.Log);
         }
         if (this._sourceMapRoot) {
-            this.log(`sourceMapRoot:[${this._sourceMapRoot}].`, LogLevel.Log);
+            this.showNotification(`sourceMapRoot:[${this._sourceMapRoot}].`, LogLevel.Log);
         }
         if (this._generatedSourceRoot) {
-            this.log(`generatedSourceRoot:[${this._generatedSourceRoot}].`, LogLevel.Log);
+            this.showNotification(`generatedSourceRoot:[${this._generatedSourceRoot}].`, LogLevel.Log);
         }
 
         if (this._sourceMapRoot) {
-            this.showNotification(`Source maps enabled.`, LogLevel.Log, true);
+            this.showNotification(`Source maps enabled.`, LogLevel.Log);
 
             // look for .map files, if not found enable inline source maps
             const foundMaps = this.doFilesWithExtExistAt(this._sourceMapRoot, ['.map']);
             if (foundMaps) {
-                this.log(`Found .map files at sourceMapRoot:[${this._sourceMapRoot}].`, LogLevel.Log);
+                this.showNotification(`Found .map files at sourceMapRoot:[${this._sourceMapRoot}].`, LogLevel.Log);
             } else {
                 this._inlineSourceMap = true;
-                this.log(
+                this.showNotification(
                     `Source maps (.map files) not found. Enabling inline source maps from sourceMapRoot:[${this._sourceMapRoot}].`,
                     LogLevel.Log,
                 );
@@ -1079,7 +1039,7 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             if (this._inlineSourceMap) {
                 const foundJSAtSourceMapRoot = this.doFilesWithExtExistAt(this._sourceMapRoot, ['.js']);
                 if (foundJSAtSourceMapRoot) {
-                    this.log(`Found .js files at sourceMapRoot:[${this._sourceMapRoot}].`, LogLevel.Log);
+                    this.showNotification(`Found .js files at sourceMapRoot:[${this._sourceMapRoot}].`, LogLevel.Log);
                 } else {
                     this.showNotification(
                         `Inline source maps not found, failed to find .js files at sourceMapRoot:[${this._sourceMapRoot}].`,
@@ -1093,7 +1053,10 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
             if (this._generatedSourceRoot) {
                 const foundJSAtGeneratedSourceRoot = this.doFilesWithExtExistAt(this._generatedSourceRoot, ['.js']);
                 if (foundJSAtGeneratedSourceRoot) {
-                    this.log(`Found .js files at generatedSourceRoot:[${this._generatedSourceRoot}].`, LogLevel.Log);
+                    this.showNotification(
+                        `Found .js files at generatedSourceRoot:[${this._generatedSourceRoot}].`,
+                        LogLevel.Log,
+                    );
                 } else {
                     this.showNotification(
                         `Failed to find .js files at generatedSourceRoot:[${this._generatedSourceRoot}].`,
@@ -1103,11 +1066,11 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                 }
             }
         } else {
-            this.log(`Source maps disabled.`, LogLevel.Log);
+            this.showNotification(`Source maps disabled.`, LogLevel.Log);
 
             const foundJS = this.doFilesWithExtExistAt(this._localRoot, ['.js']);
             if (foundJS) {
-                this.log(`Found .js files at localRoot:[${this._localRoot}].`, LogLevel.Log);
+                this.showNotification(`Found .js files at localRoot:[${this._localRoot}].`, LogLevel.Log);
             } else {
                 this.showNotification(
                     "Failed to find .js files. Check that launch.json 'localRoot' cointains .js files.",
@@ -1232,7 +1195,6 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
     }
 
     private showNotification(message: string, logLevel: LogLevel, toLog = false) {
-        toLog = true;
         if (logLevel === LogLevel.Log) {
             logger.log(message, logLevel);
         } else if (logLevel === LogLevel.Warn) {
