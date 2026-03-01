@@ -8,7 +8,9 @@
 
 This Visual Studio Plugin was patched to work anywhere, albeit at the cost of several features
 
-### Features in Neovim vs Vscode
+## :fire: Features in Neovim vs Vscode
+
+---
 
 | Feature                  | Neovim | Vscode |
 | ------------------------ | ------ | ------ |
@@ -21,7 +23,7 @@ This Visual Studio Plugin was patched to work anywhere, albeit at the cost of se
 | Performance diagnostics  | no     | yes    |
 | Minecraft Slash Commands | no     | yes    |
 
-## Getting Started
+## :rocket: Getting Started
 
 clone the repository then run:
 
@@ -30,7 +32,7 @@ npm install
 npm run compile
 ```
 
-### For debugging Minecraft Bedrock client inside Neovim
+### :zap: For debugging Minecraft Bedrock client inside Neovim
 
 ---
 
@@ -65,7 +67,7 @@ Switch out `args[0]` with the location of your build
   }
 ```
 
-#### Ensure that the Minecraft Bedrock client can make "loopback" requests
+#### :stop: Ensure that the Minecraft Bedrock client can make "loopback" requests
 
 If you want to connect Minecraft Bedrock client to your editor running on the same machine (this is the most common scenario), you will need to exempt the Minecraft client from UWP loopback restrictions. To do this, run the following from a command prompt or the Start | Run app.
 
@@ -81,7 +83,7 @@ Minecraft Bedrock Preview:
 CheckNetIsolation.exe LoopbackExempt -a -p=S-1-15-2-424268864-5579737-879501358-346833251-474568803-887069379-4040235476
 ```
 
-#### Prepare Neovim for a connection
+#### :zap: Prepare Neovim for a connection
 
 To debug with Minecraft Bedrock, you'll need to connect from Minecraft and into your editor. This set of steps assumes you are debugging on the same Windows machine that you are running Minecraft from, but you can also debug across machines and across clients if you want to. If you are debugging across devices, you may need to open up a port within your firewall on the machine that you are running your editor within.
 
@@ -137,7 +139,7 @@ If your source is in a language like TypeScript that generates JavaScript for Mi
 
 Note that `generatedSourceRoot` should point at a folder where your generated JavaScript files (\*.js) are stored - for example, the outputs of a TypeScript build process. `sourceMapRoot` should point at a folder where you have source map files - typically created during your build process - that tie your generated JavaScript source files back to your potential TypeScript source.
 
-#### Run your Minecraft Behavior Pack
+#### :telephone_receiver: Run your Minecraft Behavior Pack
 
 Now that you've prepared Neovim and prepared your behavior pack, you're ready to start debugging!
 
@@ -153,7 +155,7 @@ You should see a "Debugger connected to host" response from this command if the 
 
 You can set breakpoints in your code with `:DapToggleBreakpoint`, on specific lines of code. As you run the tests in the behavior pack, your breakpoints will be hit. You can also view local variables and add watches as necessary (maybe).
 
-### Debugging with Minecraft Bedrock Dedicated Server
+### :phone: Debugging with Minecraft Bedrock Dedicated Server
 
 ---
 
@@ -162,7 +164,7 @@ You can set breakpoints in your code with `:DapToggleBreakpoint`, on specific li
 
 The procedure for debugging with Bedrock Dedicated Server is a little different. When debugging with Bedrock Dedicated Server, Bedrock Dedicated Server (not Neovim) will listen for debug connections initiated from Neovim.
 
-#### Configure your Bedrock Dedicated Server
+#### :page_facing_up: Configure your Bedrock Dedicated Server
 
 By default, Bedrock Dedicated Servers are not configured to allow debug connections. To enable this debugging, you'll need to change some settings within the `server.properties` file of your Bedrock Dedicated Server.
 
