@@ -8,19 +8,18 @@
 
 This Visual Studio Plugin was patched to work anywhere, albeit at the cost of several features
 
-### Supported features in Neovim
+### Features in Neovim vs Vscode
 
-- Setting breakpoints
-- Stepping through the code
-- The Locals pane
-- Changing variable state
-- Immediate mode
-
-### Unsupported features
-
-- Watches
-- Performance diagnostics
-- Running Minecraft slash commands
+| Feature                  | Neovim | Vscode |
+| ------------------------ | ------ | ------ |
+| Setting breakpoints      | yes    | yes    |
+| Stepping through code    | yes    | yes    |
+| Locals Pane / Scopes     | yes    | yes    |
+| Watches                  | yes    | yes    |
+| Changing variable state  | yes    | no     |
+| Immediate mode           | yes    | no     |
+| Performance diagnostics  | no     | yes    |
+| Minecraft Slash Commands | no     | yes    |
 
 ## Getting Started
 
@@ -51,6 +50,17 @@ Switch out `args[0]` with the location of your build
         command = "node",
         args = { "path/to/build/minecraft-debugger/dist/adapter.js" },
       }
+
+      -- snippet to output logs outside of repl
+      dap.listeners.before['event_output']['mc_dap'] = function(_, body)
+        if body.category == "stdout" then
+          if body.output:match("\n$") then
+            vim.notify(body.output:sub(1, -2))
+          else
+            vim.notify(body.output)
+          end
+        end
+      end
     end
   }
 ```
