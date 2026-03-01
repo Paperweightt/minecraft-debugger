@@ -10,16 +10,16 @@
 
 The plugin was patched to work anywhere, albeit at the cost of several features
 
-| Feature                                            | Neovim                        | Vscode                        |
-| -------------------------------------------------- | ----------------------------- | ----------------------------- |
-| Setting breakpoints                                | :white_check_mark:            | :white_check_mark:            |
-| Stepping through code                              | :white_check_mark:            | :white_check_mark:            |
-| Locals Pane / Scopes                               | :white_check_mark:            | :white_check_mark:            |
-| Watches                                            | :white_check_mark:            | :white_check_mark:            |
-| Changing variable state                            | :white_check_mark:            | :negative_squared_cross_mark: |
-| Immediate mode                                     | :white_check_mark:            | :negative_squared_cross_mark: |
-| Performance diag:negative_squared_cross_mark:stics | :negative_squared_cross_mark: | :white_check_mark:            |
-| Minecraft Slash Commands                           | :negative_squared_cross_mark: | :white_check_mark:            |
+| Feature                  | Neovim | VS Code |
+| ------------------------ | :----: | :-----: |
+| Breakpoints              |   ✓    |    ✓    |
+| Step Through Code        |   ✓    |    ✓    |
+| Locals / Scopes Panel    |   ✓    |    ✓    |
+| Watches                  |   ✓    |    ✓    |
+| Change Variable State    |   ✓    |    ✗    |
+| Immediate Mode (REPL)    |   ✓    |    ✗    |
+| Performance Diagnostics  |   ✗    |    ✓    |
+| Minecraft Slash Commands |   ✗    |    ✓    |
 
 ### :rocket: Getting Started
 
