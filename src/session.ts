@@ -618,6 +618,23 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
                 }
                 break;
             }
+            case 'sendMinecraftCommand': {
+                if (!args?.command) {
+                    this.sendErrorResponse(response, 2001, 'Missing "command" argument.');
+                    return;
+                }
+
+                try {
+                    this.onRunMinecraftCommand(args.command);
+
+                    this.sendResponse(response);
+                } catch (e) {
+                    this.log((e as Error).message, LogLevel.Error);
+                    this.sendErrorResponse(response, 2002, `Failed to execute command: ${args.command}`);
+                }
+
+                break;
+            }
             default:
                 super.customRequest(command, response, args);
                 break;
