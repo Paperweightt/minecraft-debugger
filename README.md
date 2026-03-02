@@ -38,12 +38,14 @@ To use debugger capabilities, you'll want to install the nvim-dap within Neovim.
 
 Minimal example config with [lazy.nvim](https://github.com/folke/lazy.nvim),
 Switch out `args[0]` with the location of your build
+Relevant docs can be found at [nvim-dap/doc/dap.txt](https://github.com/mfussenegger/nvim-dap/blob/master/doc/dap.txt)
 
 ```lua
   return {
     "mfussenegger/nvim-dap",
     config = function()
       local dap = require('dap')
+      local repl = require('dap.repl')
 
       dap.adapters['minecraft-js'] = function(callback)
         callback({
@@ -56,6 +58,10 @@ Switch out `args[0]` with the location of your build
 
       repl.commands = vim.tbl_extend('force', repl.commands, {
         custom_commands = {
+          ['.reload'] = function()
+            local session = assert(require("dap").session(), "has active session")
+            session:request("sendMinecraftCommand", { command = "reload" })
+          end,
           ['.run'] = function(text)
             local session = assert(require("dap").session(), "has active session")
             session:request("sendMinecraftCommand", { command = text })
@@ -63,14 +69,14 @@ Switch out `args[0]` with the location of your build
         },
       })
 
-      -- snippet to output logs outside of repl
+      -- snippet to output errors to vim.notify
       dap.listeners.before['event_output']['mc_dap'] = function(_, body)
-        if body.category == "stdout" then
-          if body.output:match("\n$") then
-            vim.notify(body.output:sub(1, -2))
-          else
-            vim.notify(body.output)
-          end
+        if body.output:match("\n$") then
+          body.output = body.output:sub(1, -2)
+        end
+
+        if body.category == "stderr" then
+          vim.notify(body.output, vim.log.levels.ERROR)
         end
       end
     end
