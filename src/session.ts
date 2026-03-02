@@ -733,9 +733,6 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
         // show notifications for source map issues
         this.checkSourceFilePaths();
 
-        // success
-        this.showNotification('Success! Debugger is now connected.', LogLevel.Log, true);
-
         // init source maps
         this._sourceMaps = new SourceMaps(
             this._localRoot,
