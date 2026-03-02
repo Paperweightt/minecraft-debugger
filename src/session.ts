@@ -898,35 +898,35 @@ export class Session extends DebugSession implements IDebuggeeMessageSender {
 
     private async handlePrintEvent(message: string, logLevel: LogLevel) {
         // Attempt to resolve type maps for file paths/line numbers in each message
-        // const jsFileLineNoColumRegex = /\(([a-zA-Z0-9_\-./\\ ]+\.js):(\d+)\)/g;
-        // const matches = message.matchAll(jsFileLineNoColumRegex);
-        // for (const match of matches) {
-        //     try {
-        //         const fullMatch = match[0];
-        //         const javaScriptFilePath = match[1];
-        //         const javaScriptLineNumber = parseInt(match[2]);
-        //
-        //         const generatedPosition = await this._sourceMaps.getOriginalPositionFor({
-        //             source: javaScriptFilePath,
-        //             column: 0,
-        //             line: javaScriptLineNumber,
-        //         });
-        //         // Resolve generatedPosition.source to be relative to the active workspace. If there is no workspace, the absolute path gets returned.
-        //         let generatedPositionSourceAsRelative = workspace.asRelativePath(generatedPosition.source);
-        //         if (generatedPositionSourceAsRelative !== generatedPosition.source) {
-        //             generatedPositionSourceAsRelative = `./${generatedPositionSourceAsRelative}`;
-        //         }
-        //
-        //         if (generatedPosition) {
-        //             message = message.replace(
-        //                 fullMatch,
-        //                 `(${generatedPositionSourceAsRelative}:${generatedPosition.line}) (${javaScriptFilePath}:${javaScriptLineNumber})`,
-        //             );
-        //         }
-        //     } catch (e) {
-        //         // Eat the error, sometimes source map lookups just ain't happening
-        //     }
-        // }
+        const jsFileLineNoColumRegex = /\(([a-zA-Z0-9_\-./\\ ]+\.js):(\d+)\)/g;
+        const matches = message.matchAll(jsFileLineNoColumRegex);
+        for (const match of matches) {
+            try {
+                const fullMatch = match[0];
+                const javaScriptFilePath = match[1];
+                const javaScriptLineNumber = parseInt(match[2]);
+
+                const generatedPosition = await this._sourceMaps.getOriginalPositionFor({
+                    source: javaScriptFilePath,
+                    column: 0,
+                    line: javaScriptLineNumber,
+                });
+
+                let generatedPositionSourceAsRelative = generatedPosition.source;
+                const index = process.cwd().length;
+
+                generatedPositionSourceAsRelative = generatedPositionSourceAsRelative.substring(index);
+
+                if (generatedPosition) {
+                    message = message.replace(
+                        fullMatch,
+                        `(${generatedPositionSourceAsRelative}:${generatedPosition.line}) (${javaScriptFilePath}:${javaScriptLineNumber})`,
+                    );
+                }
+            } catch (e) {
+                // Eat the error, sometimes source map lookups just ain't happening
+            }
+        }
 
         this.showNotification(message.trimEnd(), logLevel, true);
     }

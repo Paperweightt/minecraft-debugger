@@ -45,11 +45,14 @@ Switch out `args[0]` with the location of your build
     config = function()
       local dap = require('dap')
 
-      dap.adapters['minecraft-js'] = {
-        type = "executable",
-        command = "node",
-        args = { "path/to/build/minecraft-debugger/dist/adapter.js" },
-      }
+      dap.adapters['minecraft-js'] = function(callback)
+        callback({
+          type = "executable",
+          command = "node",
+          args = { "C:/Users/henry/Projects/minecraft-debugger/dist/adapter.js" },
+          options = { cwd = vim.fn.getcwd() },
+        })
+      end
 
       repl.commands = vim.tbl_extend('force', repl.commands, {
         custom_commands = {
