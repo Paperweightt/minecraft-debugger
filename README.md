@@ -6,6 +6,8 @@
 
 <h4 align="center">Debug your JavaScript or TypeScript code running in Minecraft Bedrock, from NOT Visual Studio Code.</h4>
 
+<video src=https://github.com/user-attachments/assets/65533a11-209a-424d-a750-7908b8f7e688></video>
+
 ### :fire: Features in Neovim vs Vscode
 
 The plugin was patched to work anywhere, albeit at the cost of several features
