@@ -6,7 +6,7 @@
 
 <h4 align="center">Debug your JavaScript or TypeScript code running in Minecraft Bedrock, from NOT Visual Studio Code.</h4>
 
-<video src=https://github.com/user-attachments/assets/65533a11-209a-424d-a750-7908b8f7e688></video>
+<img src="https://github.com/Paperweightt/minecraft-debugger/blob/main/assets/preview.gif" width="600" />
 
 ### :fire: Features in Neovim vs Vscode
 
