@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  Minecraft Bedrock Debugger
+  Minecraft Bedrock Debugger in Neovim
   <br>
 </h1>
 
@@ -10,7 +10,7 @@
 
 ### :fire: Features in Neovim vs Vscode
 
-The plugin was patched to work anywhere, albeit at the cost of several features
+The plugin was patched to work anywhere, albeit at the cost of performance diagnostics.
 
 | Feature                  | Neovim | VS Code |
 | ------------------------ | :----: | :-----: |
