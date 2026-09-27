@@ -5,15 +5,19 @@ import { StatisticType, YAxisType, createStatResolver } from '../../StatisticRes
 import { TabPrefab, TabPrefabDataSource } from '../TabPrefab';
 import { generateRowsFromStatsPrefabs } from '../utilities';
 
-const serverTickTimings: StatisticPrefab = {
+const SERVER_TICK_TIMINGS_COLLECTOR = 'server_tick_timings';
+const COMMANDS_COLLECTOR = 'commands';
+
+const ServerTickTimings: StatisticPrefab = {
     name: 'Server Tick Timings',
+    collectorName: SERVER_TICK_TIMINGS_COLLECTOR,
     reactNode: (
         <MinecraftStatisticStackedLineChart
             title="Server Tick"
             statisticDataProvider={
                 new MultipleStatisticProvider({
                     statisticIds: ['level_tick', 'script_tick', 'script_job_tick'],
-                    statisticParentId: 'server_tick_timings',
+                    statisticParentId: SERVER_TICK_TIMINGS_COLLECTOR,
                 })
             }
             catageoryLabels={{
@@ -33,14 +37,15 @@ const serverTickTimings: StatisticPrefab = {
     ),
 };
 
-const commandsRan: StatisticPrefab = {
+const CommandsRan: StatisticPrefab = {
     name: 'Commands Ran',
+    collectorName: COMMANDS_COLLECTOR,
     reactNode: (
         <MinecraftStatisticStackedLineChart
             title="Commands Run"
             statisticDataProvider={
                 new MultipleStatisticProvider({
-                    statisticParentId: 'commands',
+                    statisticParentId: COMMANDS_COLLECTOR,
                 })
             }
             statisticResolver={createStatResolver({
@@ -53,12 +58,13 @@ const commandsRan: StatisticPrefab = {
     ),
 };
 
-const statsTab: TabPrefab = {
+const StatsTab: TabPrefab = {
     name: 'Server - Timings',
     dataSource: TabPrefabDataSource.Server,
+    collectors: [ServerTickTimings, CommandsRan],
     content: () => {
-        return generateRowsFromStatsPrefabs([[serverTickTimings], [commandsRan]]);
+        return generateRowsFromStatsPrefabs([[ServerTickTimings], [CommandsRan]]);
     },
 };
 
-export default statsTab;
+export default StatsTab;

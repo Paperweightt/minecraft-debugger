@@ -1,5 +1,7 @@
 // Copyright (C) Microsoft Corporation.  All rights reserved.
 
+import { DiagnosticsTabDescriptor } from "../diagnostics-schema";
+
 export interface StatData {
     name: string;
     parent_name: string;
@@ -32,10 +34,12 @@ export interface StatsListener {
     onPauseUpdated?: (paused: boolean) => void;
     onStopped?: () => void;
     onNotification?: (message: string) => void;
+    onSchemaReceived?: (schema: DiagnosticsTabDescriptor[]) => void;
 }
 
 export class StatsProvider {
     protected _statListeners: StatsListener[];
+    private _cachedSchema: DiagnosticsTabDescriptor[] | undefined;
 
     constructor(public readonly name: string, public readonly uniqueId: string) {
         this._statListeners = [];
@@ -45,6 +49,17 @@ export class StatsProvider {
         for (const stat of stats.stats) {
             this._fireStatUpdated(stat, stats.tick);
         }
+    }
+
+    public setSchema(schema: DiagnosticsTabDescriptor[]): void {
+        this._cachedSchema = schema;
+        this._statListeners.forEach((listener: StatsListener) => {
+            listener.onSchemaReceived?.(schema);
+        });
+    }
+
+    public clearSchema(): void {
+        this.setSchema([]);
     }
 
     public start(): void {
@@ -74,6 +89,12 @@ export class StatsProvider {
 
     public addStatListener(listener: StatsListener): void {
         this._statListeners.push(listener);
+
+        // If we have a cached schema from diagnostics previously sent when the page was no active, 
+        // send it to the new listener immediately
+        if (this._cachedSchema !== undefined) {
+            listener.onSchemaReceived?.(this._cachedSchema);
+        }
     }
 
     public removeStatListener(listener: StatsListener): void {
@@ -122,7 +143,7 @@ export class StatsProvider {
     }
 
     private _fireStatUpdated(stat: StatDataModel, tick: number, parent?: StatData) {
-        const statId = stat.name.toLowerCase();
+        const statId = stat.name;
 
         const statData: StatData = {
             ...stat,

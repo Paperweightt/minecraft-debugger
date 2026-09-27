@@ -15,9 +15,7 @@ export enum YAxisStyle {
     SquareRoot = 'sqrt',
     Pow = 'pow',
     Logarithmic = 'log',
-    SymLog = 'symlog',
-    Time = 'time',
-    UTC = 'utc',
+    SymLog = 'symlog'
 }
 
 export type TrackedStat = {
@@ -79,7 +77,7 @@ function DifferenceStatResolver(
         let result = [...previousValues];
 
         for (let i = 0; i < msg.values.length; i++) {
-            let value = msg.values[i];
+            const value = msg.values[i];
             let newValue = 0;
             let absoluteValue = value;
             if (result.length !== 0) {
